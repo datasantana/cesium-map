@@ -19,6 +19,16 @@ const initializeViewer = async () => {
   // Initialize the Cesium Viewer in the HTML element with the `cesiumContainer` ID.
   const viewer = new Viewer('cesiumContainer', {
     terrain: Terrain.fromWorldTerrain(),
+    timeline: false,
+    animation: false,
+    // Other optional widgets to disable:
+    homeButton: false,
+    sceneModePicker: false,
+    baseLayerPicker: false,
+    navigationHelpButton: false,
+    geocoder: false,
+    // fullscreenButton: false,
+    // vrButton: false,
   });
   return viewer;
 };
