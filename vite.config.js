@@ -31,5 +31,13 @@ export default defineConfig({
   define: {
     // Define relative base path to static assets
     CESIUM_BASE_URL: JSON.stringify('./')
+  },
+  optimizeDeps: {
+    include: ['cesium']
+  },
+  server: {
+    fs: {
+      allow: ['..']
+    }
   }
 })
