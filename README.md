@@ -156,16 +156,34 @@ const startCameraRotation = (cesiumViewer) => {
 
 ## 🚀 Deployment
 
-### GitHub Pages
+### GitHub Pages (Automated)
 
-This project includes GitHub Actions workflow for automatic deployment to GitHub Pages.
+This project is configured for automatic deployment to GitHub Pages using GitHub Actions.
 
-1. Push your code to GitHub
-2. Go to repository Settings > Pages
-3. Select "GitHub Actions" as source
-4. Your site will be available at `https://yourusername.github.io/cesium-map`
+#### Setup Steps:
 
-### Manual Deployment
+1. **Configure Repository Secrets:**
+   - Go to your GitHub repository
+   - Navigate to `Settings` > `Secrets and variables` > `Actions`
+   - Add the following repository secrets:
+     ```
+     VITE_CESIUM_ION_ACCESS_TOKEN: your_cesium_ion_token_here
+     VITE_TILESET_URL: your_azure_blob_storage_url_here
+     ```
+
+2. **Enable GitHub Pages:**
+   - Go to repository `Settings` > `Pages`
+   - Under "Source", select `GitHub Actions`
+   - Save the settings
+
+3. **Deploy:**
+   - Push your code to the `main` branch
+   - GitHub Actions will automatically build and deploy
+   - Your site will be available at: `https://datasantana.github.io/cesium-map/`
+
+#### Manual Deployment
+
+For other hosting services:
 
 1. Build the project: `npm run build`
 2. Deploy the `dist/` folder to your hosting service
