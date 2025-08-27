@@ -8,16 +8,22 @@ window.CESIUM_BASE_URL = './';
 
 import { Cartesian3, Cartographic, Cesium3DTileset, EllipsoidTerrainProvider, Ion, Math as CesiumMath, Matrix4, Terrain, Viewer } from 'cesium';
 import "cesium/Build/Cesium/Widgets/widgets.css";
-import { onMounted } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 
 // Your access token can be found at: https://ion.cesium.com/tokens.
 // Replace `your_access_token` with your Cesium ion access token.
 Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIyZjI0ZmEzMy0zYzgxLTQ5NzctYWFiYy0xZmJjZjk4MTI3ZTUiLCJpZCI6MzM0MjI5LCJpYXQiOjE3NTU4MTQ3OTJ9.jj90w51X6eaQ3QF48tLvImrtDuh7F_Jx_TjycA_vS6k';
 
+// Reactive variables for cleanup
+const viewer = ref(null);
+let cameraAnimation = null;
+let animationTimeout = null;
+let clickHandler = null;
+
 //methods
 const initializeViewer = async () => {
   // Initialize the Cesium Viewer in the HTML element with the `cesiumContainer` ID.
-  const viewer = new Viewer('cesiumContainer', {
+  const cesiumViewer = new Viewer('cesiumContainer', {
     terrain: Terrain.fromWorldTerrain(),
     timeline: false,
     animation: false,
@@ -30,7 +36,119 @@ const initializeViewer = async () => {
     // fullscreenButton: false,
     // vrButton: false,
   });
-  return viewer;
+  viewer.value = cesiumViewer;
+  return cesiumViewer;
+};
+
+const transitionToAnimationPosition = async (cesiumViewer) => {
+  console.log('🚀 Transitioning to animation starting position');
+  
+  // Define starting position for animation (first point in the orbit)
+  const centerLongitude = -76.5410942407;
+  const centerLatitude = 3.4300127118;
+  const orbitRadius = 0.005;
+  const startLongitude = centerLongitude + orbitRadius; // Start at 0 degrees
+  const startLatitude = centerLatitude;
+  const height = 1500;
+  
+  // Calculate heading to look at center from starting position
+  const deltaLongitude = centerLongitude - startLongitude;
+  const heading = Math.atan2(
+    Math.sin(deltaLongitude) * Math.cos(CesiumMath.toRadians(centerLatitude)),
+    Math.cos(CesiumMath.toRadians(startLatitude)) * Math.sin(CesiumMath.toRadians(centerLatitude)) -
+    Math.sin(CesiumMath.toRadians(startLatitude)) * Math.cos(CesiumMath.toRadians(centerLatitude)) * Math.cos(deltaLongitude)
+  );
+  
+  // Transition camera to animation starting position
+  return new Promise((resolve) => {
+    cesiumViewer.camera.flyTo({
+      destination: Cartesian3.fromDegrees(startLongitude, startLatitude, height),
+      orientation: {
+        heading: heading,
+        pitch: CesiumMath.toRadians(-45.0),
+        roll: 0.0
+      },
+      duration: 10.0, // 10 second transition
+      complete: () => {
+        console.log('✅ Transition to animation position complete');
+        resolve();
+      }
+    });
+  });
+};
+
+const startCameraRotation = (cesiumViewer) => {
+  console.log('🎬 Starting camera rotation animation');
+  
+  const camera = cesiumViewer.camera;
+  const startTime = Date.now();
+  
+  // Define origin/center point to orbit around (Cali, Colombia coordinates)
+  const centerLongitude = -76.5410942407;
+  const centerLatitude = 3.4300127118;
+  const centerPoint = Cartesian3.fromDegrees(centerLongitude, centerLatitude, 0);
+  
+  const animate = () => {
+    if (!cameraAnimation) return; // Animation was cancelled
+    
+    const elapsed = (Date.now() - startTime) / 1000;
+    const rotationSpeed = 0.05; // radians per second
+    const currentAngle = elapsed * rotationSpeed;
+    
+    // Calculate new camera position orbiting around the center
+    const orbitRadius = 0.005; // Orbit radius in degrees
+    const longitude = centerLongitude + (Math.cos(currentAngle) * orbitRadius);
+    const latitude = centerLatitude + (Math.sin(currentAngle) * orbitRadius);
+    const height = 1500; // Keep same height
+    
+    // Calculate camera position
+    const cameraPosition = Cartesian3.fromDegrees(longitude, latitude, height);
+    
+    // Calculate heading to look at center point
+    const cameraCartographic = Cartographic.fromCartesian(cameraPosition);
+    const centerCartographic = Cartographic.fromCartesian(centerPoint);
+    
+    // Calculate bearing from camera to center
+    const deltaLongitude = centerCartographic.longitude - cameraCartographic.longitude;
+    const heading = Math.atan2(
+      Math.sin(deltaLongitude) * Math.cos(centerCartographic.latitude),
+      Math.cos(cameraCartographic.latitude) * Math.sin(centerCartographic.latitude) -
+      Math.sin(cameraCartographic.latitude) * Math.cos(centerCartographic.latitude) * Math.cos(deltaLongitude)
+    );
+    
+    // Set camera position and orientation
+    camera.setView({
+      destination: cameraPosition,
+      orientation: {
+        heading: heading,
+        pitch: CesiumMath.toRadians(-45.0), // Keep same pitch
+        roll: 0.0
+      }
+    });
+    
+    cameraAnimation = requestAnimationFrame(animate);
+  };
+  
+  cameraAnimation = requestAnimationFrame(animate);
+  
+  // Set up click handler to stop animation
+  clickHandler = cesiumViewer.cesiumWidget.canvas.addEventListener('click', () => {
+    console.log('🎯 Map clicked - stopping camera animation');
+    stopCameraAnimation();
+  });
+};
+
+const stopCameraAnimation = () => {
+  if (cameraAnimation) {
+    cancelAnimationFrame(cameraAnimation);
+    cameraAnimation = null;
+    console.log('🛑 Camera animation stopped');
+  }
+  
+  if (clickHandler && viewer.value) {
+    viewer.value.cesiumWidget.canvas.removeEventListener('click', clickHandler);
+    clickHandler = null;
+  }
 };
 
 const flyToCali = async (viewer) => {
@@ -94,12 +212,45 @@ const addPascualTiles = async (viewer) => {
 // lifecycle hooks
 onMounted(async () => {
   try {
-    const viewer = await initializeViewer();
-    await flyToCali(viewer);
-    await addPascualTiles(viewer);
+    const cesiumViewer = await initializeViewer();
+    await flyToCali(cesiumViewer);
+    await addPascualTiles(cesiumViewer);
+    
+    // Wait a moment after tiles are loaded, then start animation sequence
+    animationTimeout = setTimeout(async () => {
+      console.log('🎬 Starting camera animation sequence');
+      
+      // First transition to animation starting position
+      await transitionToAnimationPosition(cesiumViewer);
+      
+      // Then start the orbital animation
+      startCameraRotation(cesiumViewer);
+    }, 2000); // Start animation sequence 2 seconds after tiles are loaded
+    
   } catch (error) {
     console.error('Error initializing Cesium viewer:', error);
   }
+});
+
+onUnmounted(() => {
+  console.log('🧹 Cleaning up Cesium viewer and animations');
+  
+  // Stop camera animation
+  stopCameraAnimation();
+  
+  // Clear timeout if still pending
+  if (animationTimeout) {
+    clearTimeout(animationTimeout);
+    animationTimeout = null;
+  }
+  
+  // Destroy viewer
+  if (viewer.value && !viewer.value.isDestroyed()) {
+    viewer.value.destroy();
+    viewer.value = null;
+  }
+  
+  console.log('✅ Cleanup completed');
 });
 
 
