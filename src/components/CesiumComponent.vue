@@ -11,8 +11,15 @@ import "cesium/Build/Cesium/Widgets/widgets.css";
 import { onMounted, onUnmounted, ref } from 'vue';
 
 // Your access token can be found at: https://ion.cesium.com/tokens.
-// Replace `your_access_token` with your Cesium ion access token.
-Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIyZjI0ZmEzMy0zYzgxLTQ5NzctYWFiYy0xZmJjZjk4MTI3ZTUiLCJpZCI6MzM0MjI5LCJpYXQiOjE3NTU4MTQ3OTJ9.jj90w51X6eaQ3QF48tLvImrtDuh7F_Jx_TjycA_vS6k';
+const cesiumIonToken = import.meta.env.VITE_CESIUM_ION_ACCESS_TOKEN;
+console.log('🔑 Cesium Ion Token loaded:', cesiumIonToken ? 'Yes' : 'No');
+console.log('🌐 Available env vars:', import.meta.env);
+
+if (!cesiumIonToken) {
+  console.error('❌ VITE_CESIUM_ION_ACCESS_TOKEN not found in environment variables');
+}
+
+Ion.defaultAccessToken = cesiumIonToken;
 
 // Reactive variables for cleanup
 const viewer = ref(null);
@@ -164,7 +171,14 @@ const flyToCali = async (viewer) => {
 
 const addPascualTiles = async (viewer) => {
   try {
-    const tilesetUrl = 'https://atomdiag.blob.core.windows.net/general-purpose/assets/models/pascual_tiles_extracted/tileset.json';
+    const tilesetUrl = import.meta.env.VITE_TILESET_URL;
+    
+    console.log('🔍 Tileset URL from env:', tilesetUrl);
+    
+    if (!tilesetUrl) {
+      console.error('❌ VITE_TILESET_URL not found in environment variables');
+      return;
+    }
     
     console.log('🔍 Loading 3D tiles from:', tilesetUrl);
     console.log('📍 Tiles origin: Azure Blob Storage (atomdiag.blob.core.windows.net)');
@@ -205,7 +219,7 @@ const addPascualTiles = async (viewer) => {
     console.log('🎯 Camera zoomed to tileset from Azure Blob Storage');
   } catch (error) {
     console.error('❌ Error loading Pascual tiles from Azure Blob Storage:', error);
-    console.error('🔗 Failed URL:', 'https://atomdiag.blob.core.windows.net/general-purpose/assets/models/pascual_tiles_extracted/tileset.json');
+    console.error('🔗 Failed URL:', import.meta.env.VITE_TILESET_URL);
   }
 };
 
